@@ -85,6 +85,7 @@
 
 #ifndef MOTHERBOARD
 #define MOTHERBOARD 7
+#define ULTIMAKER_HBK	
 #endif
 
 // Define this for the Ultimaker Heated Bed Kit
@@ -158,7 +159,7 @@
   #ifdef ULTIMAKER_UMOP
     #define TEMP_SENSOR_0 20
   #else
-    #define TEMP_SENSOR_0 -1
+    #define TEMP_SENSOR_0 5
   #endif
 #endif
 #ifndef TEMP_SENSOR_1
@@ -167,9 +168,9 @@
 #define TEMP_SENSOR_2 0
 #ifndef TEMP_SENSOR_BED
   #ifdef ULTIMAKER_HBK
-    #define TEMP_SENSOR_BED 20
+    #define TEMP_SENSOR_BED 5
   #else
-    #define TEMP_SENSOR_BED 0
+    #define TEMP_SENSOR_BED 5
   #endif
 #endif
 
@@ -351,10 +352,10 @@ const bool Z_MAX_ENDSTOP_INVERTING = true; // set to true to invert the logic of
 #define DISABLE_E false // For all extruders
 
 #ifndef INVERT_X_DIR
-  #define INVERT_X_DIR true    // for Mendel set to false, for Orca set to true
+  #define INVERT_X_DIR false    // for Mendel set to false, for Orca set to true
 #endif
 #ifndef INVERT_Y_DIR
-  #define INVERT_Y_DIR false    // for Mendel set to true, for Orca set to false
+  #define INVERT_Y_DIR true    // for Mendel set to true, for Orca set to false
 #endif
 #ifndef INVERT_Z_DIR
   #define INVERT_Z_DIR true     // for Mendel set to false, for Orca set to true
@@ -533,6 +534,7 @@ const bool Z_MAX_ENDSTOP_INVERTING = true; // set to true to invert the logic of
 // default settings
 
 // UMO MXL pulleys have 78.7402 steps/u, while GT2 have exactly 80.0
+#define ULTIMAKER_GT2
 #ifdef ULTIMAKER_GT2
 #define XY_STEPS 80.0
 #else
@@ -592,8 +594,8 @@ const bool Z_MAX_ENDSTOP_INVERTING = true; // set to true to invert the logic of
 #define PLA_PREHEAT_HPB_TEMP 70
 #define PLA_PREHEAT_FAN_SPEED 0		// Insert Value between 0 and 255
 
-#define ABS_PREHEAT_HOTEND_TEMP 250
-#define ABS_PREHEAT_HPB_TEMP 100
+#define ABS_PREHEAT_HOTEND_TEMP 240
+#define ABS_PREHEAT_HPB_TEMP 80
 #define ABS_PREHEAT_FAN_SPEED 0		// Insert Value between 0 and 255
 
 //LCD and SD support
