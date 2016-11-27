@@ -80,6 +80,7 @@
 	#define MSG_AUTOSTART "Autostart"
 	#define MSG_DISABLE_STEPPERS "Disable steppers"
 	#define MSG_AUTO_HOME "Auto home"
+	#define MSG_LASER_XYHOME "Laser XY Reset"
 	#define MSG_LASER_HOME "Laser Z Prepare"
 	#define MSG_SET_ORIGIN "Set origin"
 	#define MSG_PREHEAT_PLA "Preheat PLA"

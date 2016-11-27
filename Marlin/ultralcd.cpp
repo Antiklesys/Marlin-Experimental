@@ -609,7 +609,8 @@ static void lcd_prepare_menu()
       MENU_ITEM(function, MSG_AUTOSTART, lcd_autostart_sd);
     #endif
 #endif
-    MENU_ITEM(function, SG_LASER_HOME, laser_home);
+    MENU_ITEM(function, MSG_LASER_HOME, laser_home);
+	MENU_ITEM(gcode, MSG_LASER_XYHOME, PSTR("G28 X0 Y0"));
     MENU_ITEM(gcode, MSG_DISABLE_STEPPERS, PSTR("M84"));
 #ifdef ULTIMAKER_HBK
     MENU_ITEM(function, MSG_AUTO_HOME, lcd_home);
