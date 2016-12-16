@@ -600,6 +600,39 @@ static void laser_home()
     enquecommand_P(PSTR("G1 Z85 F12000"));
 }
 
+static void bed_leveling()
+{	
+enquecommand_P(PSTR("G21"));
+enquecommand_P(PSTR("G90"));
+enquecommand_P(PSTR("M107"));
+enquecommand_P(PSTR("G28 X0 Y0"));
+enquecommand_P(PSTR("G1 X42 Y15 F9000"));
+enquecommand_P(PSTR("G28 Z0"));
+enquecommand_P(PSTR("M0"));
+enquecommand_P(PSTR("G1 Z5.0 F180"));
+enquecommand_P(PSTR("G1 X148 Y15 F9000"));
+enquecommand_P(PSTR("G1 Z0.0 F180"));
+enquecommand_P(PSTR("M0"));
+enquecommand_P(PSTR("G1 Z5.0 F180"));
+enquecommand_P(PSTR("G1 X95 Y180 F9000"));
+enquecommand_P(PSTR("G1 Z0.0 F180"));
+enquecommand_P(PSTR("M0"));
+enquecommand_P(PSTR("G00 Z10.0 F180"));
+enquecommand_P(PSTR("G1 X15 Y15 F9000"));
+enquecommand_P(PSTR("G1 Z0.0 F180"));
+enquecommand_P(PSTR("M0"));
+enquecommand_P(PSTR("G1 Z5.0 F180"));
+enquecommand_P(PSTR("G1 X175 Y15 F9000"));
+enquecommand_P(PSTR("G1 Z0.0 F180"));
+enquecommand_P(PSTR("M0"));
+enquecommand_P(PSTR("G1 Z5.0 F180"));
+enquecommand_P(PSTR("G1 X95 Y97.5 F9000"));
+enquecommand_P(PSTR("G1 Z0.0 F180"));
+enquecommand_P(PSTR("M0"));
+enquecommand_P(PSTR("G00 Z10.0 F180"));
+enquecommand_P(PSTR("G28 X0 Y0 F9000"));
+}
+
 static void lcd_prepare_menu()
 {
     START_MENU();
@@ -609,6 +642,7 @@ static void lcd_prepare_menu()
       MENU_ITEM(function, MSG_AUTOSTART, lcd_autostart_sd);
     #endif
 #endif
+	MENU_ITEM(function, MSG_BED_LEVEL, bed_leveling);
     MENU_ITEM(function, MSG_LASER_HOME, laser_home);
 	MENU_ITEM(gcode, MSG_LASER_XYHOME, PSTR("G28 X0 Y0"));
     MENU_ITEM(gcode, MSG_DISABLE_STEPPERS, PSTR("M84"));

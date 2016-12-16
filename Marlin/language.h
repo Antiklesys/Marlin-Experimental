@@ -82,6 +82,7 @@
 	#define MSG_AUTO_HOME "Auto home"
 	#define MSG_LASER_XYHOME "Laser XY Reset"
 	#define MSG_LASER_HOME "Laser Z Prepare"
+	#define MSG_BED_LEVEL "Bed Leveling Routine"
 	#define MSG_SET_ORIGIN "Set origin"
 	#define MSG_PREHEAT_PLA "Preheat PLA"
 	#define MSG_PREHEAT_PLA0 "Preheat PLA 1"
