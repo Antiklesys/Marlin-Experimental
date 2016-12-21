@@ -8,6 +8,13 @@
 #include "stepper.h"
 #include "ConfigurationStore.h"
 
+#define BED_CENTER_ADJUST_X (X_MAX_POS/2)
+#define BED_CENTER_ADJUST_Y ((int)Y_MAX_LENGTH - 10)
+#define BED_LEFT_ADJUST_X 10
+#define BED_LEFT_ADJUST_Y 20
+#define BED_RIGHT_ADJUST_X (X_MAX_POS - 10)
+#define BED_RIGHT_ADJUST_Y 20
+
 int8_t encoderDiff; /* encoderDiff is updated from interrupt context and added to encoderPosition every LCD update */
 
 /* Configuration settings */
@@ -600,8 +607,83 @@ static void laser_home()
     enquecommand_P(PSTR("G1 Z85 F12000"));
 }
 
-static void bed_leveling()
+static void parkHeadForCenterAdjustment()
+{
+    char buffer[32];
+    sprintf_P(buffer, PSTR("G1 F%i Z5"), int(homing_feedrate[Z_AXIS]));
+    enquecommand(buffer);
+    sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[X_AXIS]), X_MAX_LENGTH / 2, BED_CENTER_ADJUST_Y);
+    enquecommand(buffer);
+    sprintf_P(buffer, PSTR("G1 F%i Z0"), int(homing_feedrate[Z_AXIS]));
+    enquecommand(buffer);
+}
+
+static void parkHeadForRightAdjustment()
+{
+    char buffer[32];
+    sprintf_P(buffer, PSTR("G1 F%i Z5"), int(homing_feedrate[Z_AXIS]));
+    enquecommand(buffer);
+    sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[X_AXIS]), BED_RIGHT_ADJUST_X, BED_RIGHT_ADJUST_Y);
+    enquecommand(buffer);
+    sprintf_P(buffer, PSTR("G1 F%i Z0"), int(homing_feedrate[Z_AXIS]));
+    enquecommand(buffer);	
+	parkHeadForCenterAdjustment();
+}
+
+static void parkHeadForLeftAdjustment()
+{
+   // add_homeing[Z_AXIS] -= current_position[Z_AXIS];
+    //current_position[Z_AXIS] = 0;
+    //plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+
+    char buffer[32];
+    sprintf_P(buffer, PSTR("G1 F%i Z5"), int(homing_feedrate[Z_AXIS]));
+    enquecommand(buffer);
+    sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[X_AXIS]), BED_LEFT_ADJUST_X, BED_LEFT_ADJUST_Y);
+    enquecommand(buffer);
+    sprintf_P(buffer, PSTR("G1 F%i Z0"), int(homing_feedrate[Z_AXIS]));
+    enquecommand(buffer);
+	parkHeadForRightAdjustment();
+}
+
+static void lcd_menu_first_run_bed_level_center_adjust()
+{
+	//still need to fix this one
+	parkHeadForLeftAdjustment();
+}
+
+static void homeAndParkHeadForCenterAdjustment2()
+{
+    //add_homeing[Z_AXIS] = 0;
+    enquecommand_P(PSTR("G28 Z0 X0 Y0"));
+    char buffer[32];
+    sprintf_P(buffer, PSTR("G1 F%i Z%i X%i Y%i"), int(homing_feedrate[0]), 35, X_MAX_LENGTH/2, BED_CENTER_ADJUST_Y);
+    enquecommand(buffer);
+	parkHeadForLeftAdjustment(); //temporary for testing only
+	//lcd_menu_first_run_bed_level_center_adjust();
+}
+
+static void homeAndParkHeadForCenterAdjustment()
+{
+    enquecommand_P(PSTR("G28 X0 Y0"));
+    char buffer[32];
+    sprintf_P(buffer, PSTR("G1 F%i Z%i X%i Y%i"), int(homing_feedrate[0]), 35, BED_CENTER_ADJUST_X, BED_CENTER_ADJUST_Y);
+    enquecommand(buffer);
+	homeAndParkHeadForCenterAdjustment2();
+}
+
+static void bed_leveling2()
 {	
+    enquecommand_P(PSTR("G28 Z0"));
+    char buffer[32];
+    sprintf_P(buffer, PSTR("G1 F%i Z%i"), int(homing_feedrate[0]), 35);
+    enquecommand(buffer);
+	homeAndParkHeadForCenterAdjustment();
+}
+
+static void bed_leveling()
+{
+	
 enquecommand_P(PSTR("G21"));
 enquecommand_P(PSTR("G90"));
 enquecommand_P(PSTR("M107"));
@@ -630,8 +712,10 @@ enquecommand_P(PSTR("G1 X95 Y97.5 F9000"));
 enquecommand_P(PSTR("G1 Z0.0 F180"));
 enquecommand_P(PSTR("M0"));
 enquecommand_P(PSTR("G00 Z10.0 F180"));
-enquecommand_P(PSTR("G28 X0 Y0 F9000"));
+enquecommand_P(PSTR("G28 X0 Y0 F9000"));	
+
 }
+
 
 static void lcd_prepare_menu()
 {
@@ -642,7 +726,7 @@ static void lcd_prepare_menu()
       MENU_ITEM(function, MSG_AUTOSTART, lcd_autostart_sd);
     #endif
 #endif
-	MENU_ITEM(function, MSG_BED_LEVEL, bed_leveling);
+	MENU_ITEM(function, MSG_BED_LEVEL, bed_leveling2);
     MENU_ITEM(function, MSG_LASER_HOME, laser_home);
 	MENU_ITEM(gcode, MSG_LASER_XYHOME, PSTR("G28 X0 Y0"));
     MENU_ITEM(gcode, MSG_DISABLE_STEPPERS, PSTR("M84"));
