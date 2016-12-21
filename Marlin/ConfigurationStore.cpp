@@ -3,6 +3,11 @@
 #include "temperature.h"
 #include "ultralcd.h"
 #include "ConfigurationStore.h"
+#include "Configuration_prusa.h"
+
+#ifdef MESH_BED_LEVELING
+#include "mesh_bed_leveling.h"
+#endif
 
 void _EEPROM_writeData(int &pos, uint8_t* value, uint8_t size)
 {
@@ -56,7 +61,7 @@ void Config_StoreSettings()
   char ver[4]= "000";
   int i=EEPROM_OFFSET;
   EEPROM_WRITE_VAR(i,ver); // invalidate data first 
-  EEPROM_WRITE_VAR(i,axis_steps_per_unit);  
+  EEPROM_WRITE_VAR(i,axis_steps_per_unit); 
   EEPROM_WRITE_VAR(i,max_feedrate);  
   EEPROM_WRITE_VAR(i,max_acceleration_units_per_sq_second);
   EEPROM_WRITE_VAR(i,acceleration);
