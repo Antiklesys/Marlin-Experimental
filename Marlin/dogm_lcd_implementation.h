@@ -57,9 +57,7 @@
 #define DOG_CHAR_WIDTH_LARGE	9
 #define DOG_CHAR_HEIGHT_LARGE	18
 
-
 #define START_ROW				0
-
 
 /* Custom characters defined in font font_6x10_marlin.c */
 #define LCD_STR_BEDTEMP     "\x9E"

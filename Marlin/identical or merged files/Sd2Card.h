@@ -105,6 +105,12 @@ uint8_t const SD_CARD_ERROR_SCK_RATE = 0X18;
 uint8_t const SD_CARD_ERROR_INIT_NOT_CALLED = 0X19;
 /** crc check error */
 uint8_t const SD_CARD_ERROR_CRC = 0X20;
+
+/** Toshiba FlashAir: iSDIO */
+uint8_t const SD_CARD_ERROR_CMD48 = 0x80;
+/** Toshiba FlashAir: iSDIO */
+uint8_t const SD_CARD_ERROR_CMD49 = 0x81;
+
 //------------------------------------------------------------------------------
 // card types
 /** Standard capacity V1 SD card */
@@ -156,7 +162,7 @@ uint8_t const SPI_SCK_PIN = SOFT_SPI_SCK_PIN;
 class Sd2Card {
  public:
   /** Construct an instance of Sd2Card. */
-  Sd2Card() : errorCode_(SD_CARD_ERROR_INIT_NOT_CALLED), type_(0) {}
+  Sd2Card() : errorCode_(SD_CARD_ERROR_INIT_NOT_CALLED), type_(0), flash_air_compatible_(false) {}
   uint32_t cardSize();
   bool erase(uint32_t firstBlock, uint32_t lastBlock);
   bool eraseSingleBlockEnable();
@@ -215,6 +221,13 @@ class Sd2Card {
   bool writeData(const uint8_t* src);
   bool writeStart(uint32_t blockNumber, uint32_t eraseCount);
   bool writeStop();
+
+  // Toshiba FlashAir support
+  uint8_t readExtMemory(uint8_t mio, uint8_t func, uint32_t addr, uint16_t count, uint8_t* dst);
+
+  void setFlashAirCompatible(bool flashAirCompatible) { flash_air_compatible_ = flashAirCompatible; }
+  bool getFlashAirCompatible() const { return flash_air_compatible_; }
+
  private:
   //----------------------------------------------------------------------------
   uint8_t chipSelectPin_;
@@ -222,6 +235,7 @@ class Sd2Card {
   uint8_t spiRate_;
   uint8_t status_;
   uint8_t type_;
+  bool    flash_air_compatible_;
   // private functions
   uint8_t cardAcmd(uint8_t cmd, uint32_t arg) {
     cardCommand(CMD55, 0);
@@ -236,6 +250,11 @@ class Sd2Card {
   void type(uint8_t value) {type_ = value;}
   bool waitNotBusy(uint16_t timeoutMillis);
   bool writeData(uint8_t token, const uint8_t* src);
+
+
+  // Toshiba FlashAir support
+  uint8_t waitStartBlock(void);
+  uint8_t readExt(uint32_t arg, uint8_t* dst, uint16_t count);
 };
 #endif  // Sd2Card_h
 
