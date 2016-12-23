@@ -31,6 +31,14 @@
 void tp_init();  //initialize the heating
 void manage_heater(); //it is critical that this is called periodically.
 
+#ifdef FILAMENT_SENSOR
+// For converting raw Filament Width to milimeters 
+ float analog2widthFil(); 
+ 
+// For converting raw Filament Width to an extrusion ratio 
+ int widthFil_to_size_ratio();
+#endif
+
 // low level conversion routines
 // do not use these routines and variables outside of temperature.cpp
 extern int target_temperature[EXTRUDERS];  
@@ -65,7 +73,8 @@ extern float current_temperature_bed;
 #ifdef BABYSTEPPING
   extern volatile int babystepsTodo[3];
 #endif
-  
+
+
 //high level conversion routines, for use outside of temperature.cpp
 //inline so that there is no performance decrease.
 //deg=degreeCelsius
@@ -147,12 +156,21 @@ FORCE_INLINE bool isCoolingBed() {
 #error Invalid number of extruders
 #endif
 
+#if (defined (TEMP_RUNAWAY_BED_HYSTERESIS) && TEMP_RUNAWAY_BED_TIMEOUT > 0) || (defined (TEMP_RUNAWAY_EXTRUDER_HYSTERESIS) && TEMP_RUNAWAY_EXTRUDER_TIMEOUT > 0)
+static float temp_runaway_status[4];
+static float temp_runaway_target[4];
+static float temp_runaway_timer[4];
+static int temp_runaway_error_counter[4];
 
+void temp_runaway_check(int _heater_id, float _target_temperature, float _current_temperature, float _output, bool _isbed);
+void temp_runaway_stop(bool isPreheat);
+#endif
 
 int getHeaterPower(int heater);
 void disable_heater();
 void setWatch();
 void updatePID();
+
 
 FORCE_INLINE void autotempShutdown(){
  #ifdef AUTOTEMP

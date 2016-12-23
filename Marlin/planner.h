@@ -167,3 +167,11 @@ void set_extrude_min_temp(float temp);
 
 void reset_acceleration_rates();
 #endif
+
+// #define PLANNER_DIAGNOSTICS
+#ifdef PLANNER_DIAGNOSTICS
+// Diagnostic functions to display planner buffer underflow on the display.
+extern uint8_t planner_queue_min();
+// Diagnostic function: Reset the minimum planner segments.
+extern void planner_queue_min_reset();
+#endif /* PLANNER_DIAGNOSTICS */

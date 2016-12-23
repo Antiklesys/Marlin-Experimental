@@ -36,7 +36,13 @@
   #endif
 #endif // ENABLE_AUTO_BED_LEVELING
 
+#ifdef MESH_BED_LEVELING
+  #include "mesh_bed_leveling.h"
+  #include "mesh_bed_calibration.h"
+#endif
+
 #include "ultralcd.h"
+//#include "Configuration_prusa.h"  //from prusa
 #include "planner.h"
 #include "stepper.h"
 #include "temperature.h"
@@ -47,6 +53,7 @@
 #include "language.h"
 #include "pins_arduino.h"
 #include "math.h"
+//#include "util.h" //from prusa
 
 #ifdef BLINKM
 #include "BlinkM.h"
@@ -68,6 +75,11 @@
 
 //Implemented Codes
 //-------------------
+
+// PRUSA CODES
+// P F - Returns FW versions
+// P R - Returns revision of printer
+
 // G0  -> G1
 // G1  - Coordinated Movement X Y Z E
 // G2  - CW ARC
@@ -78,6 +90,10 @@
 // G28 - Home all Axis
 // G29 - Detailed Z-Probe, probes the bed at 3 or more points.  Will fail if you haven't homed yet.
 // G30 - Single Z Probe, probes bed at current XY location.
+// G31 - Dock sled (Z_PROBE_SLED only)
+// G32 - Undock sled (Z_PROBE_SLED only)
+// G80 - Automatic mesh bed leveling
+// G81 - Print bed profile
 // G90 - Use Absolute Coordinates
 // G91 - Use Relative Coordinates
 // G92 - Set current position to coordinates given
@@ -119,6 +135,7 @@
 // M109 - Sxxx Wait for extruder current temp to reach target temp. Waits only when heating
 //        Rxxx Wait for extruder current temp to reach target temp. Waits when heating and cooling
 //        IF AUTOTEMP is enabled, S<mintemp> B<maxtemp> F<factor>. Exit autotemp by any M109 without F
+// M112 - Emergency stop
 // M114 - Output current position to serial port
 // M115 - Capabilities string
 // M117 - display message
@@ -156,10 +173,15 @@
 // M400 - Finish all moves
 // M401 - Lower z-probe if present
 // M402 - Raise z-probe if present
+// M404 - N<dia in mm> Enter the nominal filament width (3mm, 1.75mm ) or will display nominal filament width without parameters
+// M405 - Turn on Filament Sensor extrusion control.  Optional D<delay in cm> to set delay in centimeters between sensor and extruder 
+// M406 - Turn off Filament Sensor extrusion control 
+// M407 - Displays measured filament diameter 
 // M500 - stores parameters in EEPROM
 // M501 - reads parameters from EEPROM (if you need reset them after you changed them temporarily).
 // M502 - reverts to the default "factory settings".  You still need to store them in EEPROM afterwards if you want to.
 // M503 - print the current settings (from memory not from EEPROM)
+// M509 - force language selection on next restart
 // M540 - Use S[0|1] to enable or disable the stop SD card print on endstop hit (requires ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED)
 // M600 - Pause for filament change X[pos] Y[pos] Z[relative lift] E[initial retract] L[later retract distance for removal]
 // M665 - set delta configurations
@@ -229,6 +251,7 @@ float extruder_offset[NUM_EXTRUDER_OFFSETS][EXTRUDERS] = {
 #endif
 };
 #endif
+
 uint8_t active_extruder = 0;
 int fanSpeed=0;
 #ifdef SERVO_ENDSTOPS
@@ -295,12 +318,16 @@ int EtoPPressure=0;
 //===========================================================================
 const char axis_codes[NUM_AXIS] = {'X', 'Y', 'Z', 'E'};
 static float destination[NUM_AXIS] = {  0.0, 0.0, 0.0, 0.0};
+
+// For tracing an arc
 static float offset[3] = {0.0, 0.0, 0.0};
 static bool home_all_axis = true;
 static float feedrate = 1500.0, next_feedrate, saved_feedrate;
 static long gcode_N, gcode_LastN, Stopped_gcode_LastN = 0;
 
-static bool relative_mode = false;  //Determines Absolute or Relative Coordinates
+// Determines Absolute or Relative Coordinates.
+// Also there is bool axis_relative_modes[] per axis flag.
+static bool relative_mode = false;  
 
 static char cmdbuffer[BUFSIZE][MAX_CMD_SIZE];
 static bool fromsd[BUFSIZE];
@@ -673,7 +700,7 @@ void get_command()
 
           gcode_LastN = gcode_N;
           //if no errors, continue parsing
-        }
+        } // end of 'N' command
         else  // if we don't receive 'N' but still see '*'
         {
           if((strchr(cmdbuffer[bufindw], '*') != NULL))
@@ -684,7 +711,7 @@ void get_command()
             serial_count = 0;
             return;
           }
-        }
+        } // end of '*' command
         if((strchr(cmdbuffer[bufindw], 'G') != NULL)){
           strchr_pointer = strchr(cmdbuffer[bufindw], 'G');
           switch((int)((strtod(&cmdbuffer[bufindw][strchr_pointer - cmdbuffer[bufindw] + 1], NULL)))){
@@ -722,6 +749,8 @@ void get_command()
   }
   #ifdef SDSUPPORT
   if(!card.sdprinting || serial_count!=0){
+    // If there is a half filled buffer from serial line, wait until return before
+    // continuing with the serial line.
     return;
   }
 
@@ -885,6 +914,8 @@ static void axis_is_at_home(int axis) {
   max_pos[axis] =          base_max_pos(axis) + add_homeing[axis];
 }
 
+
+
 #ifdef ENABLE_AUTO_BED_LEVELING
 #ifdef AUTO_BED_LEVELING_GRID
 static void set_bed_level_equation_lsq(double *plane_equation_coefficients)
@@ -904,7 +935,7 @@ static void set_bed_level_equation_lsq(double *plane_equation_coefficients)
     current_position[Y_AXIS] = corrected_position.y;
     current_position[Z_AXIS] = corrected_position.z;
 
-    // but the bed at 0 so we don't go below it.
+    // put the bed at 0 so we don't go below it.
     current_position[Z_AXIS] = zprobe_zoffset; // in the lsq we reach here after raising the extruder due to the loop structure
 
     plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
@@ -1242,7 +1273,7 @@ void process_commands()
       st_synchronize();
       codenum += millis();  // keep track of when we started waiting
       previous_millis_cmd = millis();
-      while(millis()  < codenum ){
+      while(millis() < codenum) {
         manage_heater();
         manage_inactivity();
         lcd_update();
@@ -1257,9 +1288,12 @@ void process_commands()
       break;
       #endif //FWRETRACT
     case 28: //G28 Home all Axis one at a time
+
 #ifdef ENABLE_AUTO_BED_LEVELING
       plan_bed_level_matrix.set_to_identity();  //Reset the plane ("erase" all leveling data)
 #endif //ENABLE_AUTO_BED_LEVELING
+
+
 
 
       saved_feedrate = feedrate;
@@ -2524,6 +2558,7 @@ void process_commands()
 
           if (pin_number > -1)
           {
+
             st_synchronize();
 
             pinMode(pin_number, INPUT);
@@ -2871,9 +2906,9 @@ void process_commands()
             target[Y_AXIS]= FILAMENTCHANGE_YPOS ;
           #endif
         }
-
         plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder);
 
+        // Unload filament
         if(code_seen('L'))
         {
           target[E_AXIS]+= code_value();
@@ -2884,7 +2919,6 @@ void process_commands()
             target[E_AXIS]+= FILAMENTCHANGE_FINALRETRACT ;
           #endif
         }
-
         plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder);
 
         //finish moves
@@ -3511,6 +3545,7 @@ void manage_inactivity()
     if( 0 == READ(KILL_PIN) )
       kill();
   #endif
+
   #if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
     controllerFan(); //Check if fan should be turned on to cool stepper drivers down
   #endif
