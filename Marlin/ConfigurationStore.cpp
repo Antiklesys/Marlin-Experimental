@@ -82,6 +82,9 @@ void Config_StoreSettings()
   #ifndef ULTIPANEL
   int plaPreheatHotendTemp = PLA_PREHEAT_HOTEND_TEMP, plaPreheatHPBTemp = PLA_PREHEAT_HPB_TEMP, plaPreheatFanSpeed = PLA_PREHEAT_FAN_SPEED;
   int absPreheatHotendTemp = ABS_PREHEAT_HOTEND_TEMP, absPreheatHPBTemp = ABS_PREHEAT_HPB_TEMP, absPreheatFanSpeed = ABS_PREHEAT_FAN_SPEED;
+ 
+
+ 
   #endif
   EEPROM_WRITE_VAR(i,plaPreheatHotendTemp);
   EEPROM_WRITE_VAR(i,plaPreheatHPBTemp);
@@ -89,15 +92,16 @@ void Config_StoreSettings()
   EEPROM_WRITE_VAR(i,absPreheatHotendTemp);
   EEPROM_WRITE_VAR(i,absPreheatHPBTemp);
   EEPROM_WRITE_VAR(i,absPreheatFanSpeed);
+ 
   EEPROM_WRITE_VAR(i,zprobe_zoffset);
   #ifdef PIDTEMP
     EEPROM_WRITE_VAR(i,Kp);
     EEPROM_WRITE_VAR(i,Ki);
     EEPROM_WRITE_VAR(i,Kd);
   #else
-    float dummy = 3000.0f;
+		float dummy = 3000.0f;
     EEPROM_WRITE_VAR(i,dummy);
-    dummy = 0.0f;
+		dummy = 0.0f;
     EEPROM_WRITE_VAR(i,dummy);
     EEPROM_WRITE_VAR(i,dummy);
   #endif
@@ -264,12 +268,12 @@ void Config_RetrieveSettings()
     if (strncmp(ver,stored_ver,3) == 0)
     {
         // version number match
-        EEPROM_READ_VAR(i,axis_steps_per_unit);  
+        EEPROM_READ_VAR(i,axis_steps_per_unit);
         EEPROM_READ_VAR(i,max_feedrate);  
         EEPROM_READ_VAR(i,max_acceleration_units_per_sq_second);
         
         // steps per sq second need to be updated to agree with the units per sq second (as they are what is used in the planner)
-        reset_acceleration_rates();
+		reset_acceleration_rates();
         
         EEPROM_READ_VAR(i,acceleration);
         EEPROM_READ_VAR(i,retract_acceleration);
@@ -289,6 +293,7 @@ void Config_RetrieveSettings()
         #ifndef ULTIPANEL
         int plaPreheatHotendTemp, plaPreheatHPBTemp, plaPreheatFanSpeed;
         int absPreheatHotendTemp, absPreheatHPBTemp, absPreheatFanSpeed;
+
         #endif
         EEPROM_READ_VAR(i,plaPreheatHotendTemp);
         EEPROM_READ_VAR(i,plaPreheatHPBTemp);
@@ -296,11 +301,14 @@ void Config_RetrieveSettings()
         EEPROM_READ_VAR(i,absPreheatHotendTemp);
         EEPROM_READ_VAR(i,absPreheatHPBTemp);
         EEPROM_READ_VAR(i,absPreheatFanSpeed);
+        
+
+        
         EEPROM_READ_VAR(i,zprobe_zoffset);
         #ifndef PIDTEMP
         float Kp,Ki,Kd;
         #endif
-        // do not need to scale PID values as the values in EEPROM are already scaled
+        // do not need to scale PID values as the values in EEPROM are already scaled		
         EEPROM_READ_VAR(i,Kp);
         EEPROM_READ_VAR(i,Ki);
         EEPROM_READ_VAR(i,Kd);

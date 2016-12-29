@@ -1493,6 +1493,7 @@ void process_commands()
           current_position[Z_AXIS] += zprobe_zoffset;  //Add Z_Probe offset (the distance is negative)
         }
       #endif
+  
       plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
 #endif // else DELTA
 
@@ -1911,6 +1912,9 @@ void process_commands()
 #endif
       setWatch();
       break;
+    case 112: //  M112 -Emergency Stop
+      kill();
+      break;
     case 140: // M140 set bed temp
       if (code_seen('S')) setTargetBed(code_value());
       break;
@@ -2059,9 +2063,9 @@ void process_commands()
           if ((residencyStart == -1 &&  target_direction && (degHotend(tmp_extruder) >= (degTargetHotend(tmp_extruder)-TEMP_WINDOW))) ||
               (residencyStart == -1 && !target_direction && (degHotend(tmp_extruder) <= (degTargetHotend(tmp_extruder)+TEMP_WINDOW))) ||
               (residencyStart > -1 && labs(degHotend(tmp_extruder) - degTargetHotend(tmp_extruder)) > TEMP_HYSTERESIS) )
-          {
-            residencyStart = millis();
-          }
+			  {
+				residencyStart = millis();
+			  }
         #endif //TEMP_RESIDENCY_TIME
         }
         LCD_MESSAGEPGM(MSG_HEATING_COMPLETE);

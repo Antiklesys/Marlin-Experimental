@@ -334,10 +334,6 @@ ISR(TIMER1_COMPA_vect)
           return;
         }
       #endif
-
-//      #ifdef ADVANCE
-//      e_steps[current_block->active_extruder] = 0;
-//      #endif
     }
     else {
         OCR1A=2000; // 1kHz.
@@ -1213,6 +1209,9 @@ void digipot_init() //Initialize Digipot Motor Current
   #endif
 }
 
+
+
+
 void digipot_current(uint8_t driver, int current)
 {
   #if defined(DIGIPOTSS_PIN) && DIGIPOTSS_PIN > -1
@@ -1241,7 +1240,7 @@ void microstep_init()
   pinMode(Y_MS1_PIN,OUTPUT);
   pinMode(Y_MS2_PIN,OUTPUT);
   pinMode(Z_MS1_PIN,OUTPUT);
-  pinMode(Z_MS2_PIN,OUTPUT);  
+  pinMode(Z_MS2_PIN,OUTPUT);
   pinMode(E0_MS1_PIN,OUTPUT);
   pinMode(E0_MS2_PIN,OUTPUT);
   for(int i=0;i<=4;i++) microstep_mode(i,microstep_modes[i]);
