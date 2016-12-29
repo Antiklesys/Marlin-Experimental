@@ -136,9 +136,11 @@ static void lcd_implementation_init()
 			u8g.drawBitmapP(0,0,START_BMPBYTEWIDTH,START_BMPHEIGHT,start_bmp);
 			// Welcome message
 			u8g.setFont(u8g_font_6x10_marlin);
-			u8g.drawStr(62,10,"Marlin"); 
-			if (pbuf1 != NULL) u8g.drawStr(62,20,pbuf1);
-			if (pbuf2 != NULL) u8g.drawStr(62,30,pbuf2);
+			u8g.drawStr(62,10,"MARLIN"); 
+			u8g.setFont(u8g_font_5x8);
+			u8g.drawStr(62,19,"V1.0.2");
+			u8g.setFont(u8g_font_6x10_marlin);
+			u8g.drawStr(62,28,"by ErikZalm");
 			u8g.drawStr(62,41,"DOGM128 LCD");
 			u8g.setFont(u8g_font_5x8);
 			u8g.drawStr(62,48,"enhancements");
@@ -174,6 +176,25 @@ static void lcd_printPGM(const char* str)
     }
 }
 
+static void _draw_heater_status(int x, int heater) {
+  bool isBed = heater < 0;
+  int y = 17 + (isBed ? 1 : 0);
+  u8g.setFont(FONT_STATUSMENU);
+  u8g.setPrintPos(x,6);
+  u8g.print(itostr3(int((heater >= 0 ? degTargetHotend(heater) : degTargetBed()) + 0.5)));
+  lcd_printPGM(PSTR(LCD_STR_DEGREE " "));
+  u8g.setPrintPos(x,27);
+  u8g.print(itostr3(int(heater >= 0 ? degHotend(heater) : degBed()) + 0.5));
+  lcd_printPGM(PSTR(LCD_STR_DEGREE " "));
+  if (!isHeatingHotend(0)) {
+    u8g.drawBox(x+7,y,2,2);
+  }
+  else {
+    u8g.setColorIndex(0); // white on black
+    u8g.drawBox(x+7,y,2,2);
+    u8g.setColorIndex(1); // black on white
+  }
+}
 
 static void lcd_implementation_status_screen()
 {
@@ -341,7 +362,21 @@ static void lcd_implementation_status_screen()
  // Status line
  u8g.setFont(FONT_STATUSMENU);
  u8g.setPrintPos(0,61);
- u8g.print(lcd_status_message);
+ #ifndef FILAMENT_LCD_DISPLAY
+ 	u8g.print(lcd_status_message);
+ #else
+	if(message_millis+5000>millis()){  //Display both Status message line and Filament display on the last line
+	 u8g.print(lcd_status_message);
+ 	}
+ 	else
+	{
+	 lcd_printPGM(PSTR("dia:"));
+	 u8g.print(ftostr12ns(filament_width_meas));
+	 lcd_printPGM(PSTR(" factor:"));
+	 u8g.print(itostr3(extrudemultiply));
+	 u8g.print('%');
+	}
+ #endif 	
 
 }
 

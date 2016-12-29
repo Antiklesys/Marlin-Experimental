@@ -50,7 +50,7 @@ char *createFilename(char *buffer,const dir_t &p) //buffer>12characters
 }
 
 
-void  CardReader::lsDive(const char *prepend,SdFile parent)
+void CardReader::lsDive(const char *prepend, SdFile parent, const char * const match/*=NULL*/)
 {
   dir_t p;
  uint8_t cnt=0;
@@ -92,17 +92,15 @@ void  CardReader::lsDive(const char *prepend,SdFile parent)
     }
     else
     {
-      if (p.name[0] == DIR_NAME_FREE) break;
-      if (p.name[0] == DIR_NAME_DELETED || p.name[0] == '.'|| p.name[0] == '_') continue;
-      if (longFilename[0] != '\0' &&
-          (longFilename[0] == '.' || longFilename[0] == '_')) continue;
-      if ( p.name[0] == '.')
-      {
-        if ( p.name[1] != '.')
-        continue;
-      }
-      
+      char pn0 = p.name[0];
+      if (pn0 == DIR_NAME_FREE) break;
+      if (pn0 == DIR_NAME_DELETED || pn0 == '.' || pn0 == '_') continue;
+      char lf0 = longFilename[0];
+      if (lf0 == '.' || lf0 == '_') continue;
+
       if (!DIR_IS_FILE_OR_SUBDIR(&p)) continue;
+      // Ignore the files and directories with hidden or system attribute.
+      if ((p.attributes & (DIR_ATT_HIDDEN | DIR_ATT_SYSTEM)) != 0) continue;
       filenameIsDir=DIR_IS_SUBDIR(&p);
       
       
@@ -124,8 +122,10 @@ void  CardReader::lsDive(const char *prepend,SdFile parent)
       } 
       else if(lsAction==LS_GetFilename)
       {
-        if(cnt==nrFiles)
-          return;
+        if (match != NULL) {
+          if (strcasecmp(match, filename) == 0) return;
+        }
+        else if (cnt == nrFiles) return;
         cnt++;
         
       }
@@ -522,9 +522,10 @@ void CardReader::checkautostart(bool force)
     if(strncmp((char*)p.name,autoname,5)==0)
     {
       char cmd[30];
-
+      // M23: Select SD file
       sprintf_P(cmd, PSTR("M23 %s"), autoname);
       enquecommand(cmd);
+      // M24: Start/resume SD print
       enquecommand_P(PSTR("M24"));
       found=true;
     }
@@ -552,13 +553,13 @@ void CardReader::closefile(bool store_location)
   
 }
 
-void CardReader::getfilename(const uint8_t nr)
+void CardReader::getfilename(uint16_t nr, const char * const match/*=NULL*/)
 {
   curDir=&workDir;
   lsAction=LS_GetFilename;
   nrFiles=nr;
   curDir->rewind();
-  lsDive("",*curDir);
+  lsDive("",*curDir,match);
   
 }
 
@@ -635,4 +636,11 @@ void CardReader::printingHasFinished()
       autotempShutdown();
     }
 }
+
+bool CardReader::ToshibaFlashAir_GetIP(uint8_t *ip)
+{
+    memset(ip, 0, 4);
+    return card.readExtMemory(1, 1, 0x400+0x150, 4, ip);
+}
+
 #endif //SDSUPPORT

@@ -353,12 +353,11 @@ class SdBaseFile {
   bool addDirCluster();
   dir_t* cacheDirEntry(uint8_t action);
   int8_t lsPrintNext( uint8_t flags, uint8_t indent);
-  static bool make83Name(const char* str, uint8_t* name, const char** ptr, uint8_t oflag);
+  static bool make83Name(const char* str, uint8_t* name, const char** ptr);
   bool mkdir(SdBaseFile* parent, const uint8_t dname[11]);
   bool open(SdBaseFile* dirFile, const uint8_t dname[11], uint8_t oflag);
   bool openCachedEntry(uint8_t cacheIndex, uint8_t oflags);
   dir_t* readDirCache();
-  char utf16Ascii(uint16_t utf);
 //------------------------------------------------------------------------------
 // to be deleted
   static void printDirName( const dir_t& dir,
