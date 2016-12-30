@@ -6,12 +6,57 @@
 
 #ifdef ULTRA_LCD
 
-  void lcd_update();
+  void lcd_update(uint8_t lcdDrawUpdateOverride = 0);
+  // Call with a false parameter to suppress the LCD update from various places like the planner or the temp control.
+  void lcd_update_enable(bool enable);
   void lcd_init();
   void lcd_setstatus(const char* message);
   void lcd_setstatuspgm(const char* message);
   void lcd_setalertstatuspgm(const char* message);
   void lcd_reset_alert_level();
+  void lcd_adjust_z();
+  void lcd_pick_babystep();
+  void lcd_alright();
+  void EEPROM_save_B(int pos, int* value);
+  void EEPROM_read_B(int pos, int* value);
+  void lcd_wait_interact();
+  void lcd_change_filament();
+  void lcd_loading_filament();
+  void lcd_change_success();
+  void lcd_loading_color();
+  void lcd_force_language_selection();
+  void lcd_sdcard_stop();
+  void prusa_statistics(int _message);
+  void lcd_confirm_print();
+void lcd_mylang();
+  bool lcd_detected(void);
+
+  static void lcd_selftest();
+  static bool lcd_selfcheck_endstops();
+  static bool lcd_selfcheck_axis(int _axis, int _travel);
+  static bool lcd_selfcheck_check_heater(bool _isbed);
+  static int  lcd_selftest_screen(int _step, int _progress, int _progress_scale, bool _clear, int _delay);
+  static void lcd_selftest_screen_step(int _row, int _col, int _state, const char *_name, const char *_indicator);
+  static bool lcd_selftest_fan_dialog(int _fan);
+  static void lcd_selftest_error(int _error_no, const char *_error_1, const char *_error_2);
+  static void lcd_menu_statistics();
+
+  extern const char* lcd_display_message_fullscreen_P(const char *msg, uint8_t &nlines);
+  inline const char* lcd_display_message_fullscreen_P(const char *msg) 
+    { uint8_t nlines; return lcd_display_message_fullscreen_P(msg, nlines); }
+
+  extern void lcd_wait_for_click();
+  extern void lcd_show_fullscreen_message_and_wait_P(const char *msg);
+  // 0: no, 1: yes, -1: timeouted
+  extern int8_t lcd_show_fullscreen_message_yes_no_and_wait_P(const char *msg, bool allow_timeouting = true);
+
+  // Ask the user to move the Z axis up to the end stoppers and let
+  // the user confirm that it has been done.
+  extern bool lcd_calibrate_z_end_stop_manual(bool only_z);
+  // Show the result of the calibration process on the LCD screen.
+  extern void lcd_bed_calibration_show_result(BedSkewOffsetDetectionResultType result, uint8_t point_too_far_mask);
+
+  extern void lcd_diag_show_end_stops();
 
 #ifdef DOGLCD
   extern int lcd_contrast;
@@ -22,11 +67,11 @@
 
   #define LCD_MESSAGEPGM(x) lcd_setstatuspgm(PSTR(x))
   #define LCD_ALERTMESSAGEPGM(x) lcd_setalertstatuspgm(PSTR(x))
+  #define LCD_MESSAGERPGM(x) lcd_setstatuspgm((x))
+  #define LCD_ALERTMESSAGERPGM(x) lcd_setalertstatuspgm((x))
 
   #define LCD_UPDATE_INTERVAL 100
-  #ifndef LCD_TIMEOUT_TO_STATUS
-    #define LCD_TIMEOUT_TO_STATUS 15000
-  #endif
+  #define LCD_TIMEOUT_TO_STATUS 15000
 
   #ifdef ULTIPANEL
   void lcd_buttons_update();
@@ -49,6 +94,9 @@
   void lcd_buzz(long duration,uint16_t freq);
   bool lcd_clicked();
 
+  void lcd_ignore_click(bool b=true);
+  void lcd_commands();
+  
   #ifdef NEWPANEL
     #define EN_C (1<<BLEN_C)
     #define EN_B (1<<BLEN_B)
@@ -89,16 +137,19 @@
   #endif//NEWPANEL
 
 #else //no LCD
-  FORCE_INLINE void lcd_update() {}
+  FORCE_INLINE void 
+  {}
   FORCE_INLINE void lcd_init() {}
   FORCE_INLINE void lcd_setstatus(const char* message) {}
   FORCE_INLINE void lcd_buttons_update() {}
   FORCE_INLINE void lcd_reset_alert_level() {}
   FORCE_INLINE void lcd_buzz(long duration,uint16_t freq) {}
+  FORCE_INLINE bool lcd_detected(void) { return true; }
 
   #define LCD_MESSAGEPGM(x) 
   #define LCD_ALERTMESSAGEPGM(x) 
-#endif 
+
+#endif //ULTRA_LCD
 
 char *itostr2(const uint8_t &x);
 char *itostr31(const int &xx);
@@ -110,8 +161,26 @@ char *ftostr3(const float &x);
 char *ftostr31ns(const float &x); // float to string without sign character
 char *ftostr31(const float &x);
 char *ftostr32(const float &x);
+char *ftostr32ns(const float &x);
+char *ftostr43(const float &x);
+char *ftostr12ns(const float &x);
+char *ftostr13ns(const float &x);
+char *ftostr32sp(const float &x); // remove zero-padding from ftostr32
 char *ftostr5(const float &x);
 char *ftostr51(const float &x);
 char *ftostr52(const float &x);
 
-#endif //ULTRALCD
+
+extern void lcd_implementation_clear();
+extern void lcd_printPGM(const char* str);
+extern void lcd_print_at_PGM(uint8_t x, uint8_t y, const char* str);
+extern void lcd_implementation_write(char c);
+extern void lcd_implementation_print(const char *str);
+extern void lcd_implementation_print(int8_t i);
+extern void lcd_implementation_print_at(uint8_t x, uint8_t y, int8_t i);
+extern void lcd_implementation_print(int i);
+extern void lcd_implementation_print_at(uint8_t x, uint8_t y, int i);
+extern void lcd_implementation_print(float f);
+extern void lcd_implementation_print_at(uint8_t x, uint8_t y, const char *str);
+
+#endif //ULTRALCD_H

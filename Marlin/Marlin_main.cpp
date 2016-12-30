@@ -60,6 +60,10 @@
 #include "Wire.h"
 #endif
 
+#ifdef ULTRALCD
+#include "ultralcd.h"
+#endif
+
 #if NUM_SERVOS > 0
 #include "Servo.h"
 #endif
@@ -68,7 +72,16 @@
 #include <SPI.h>
 #endif
 
-#define VERSION_STRING  "1.0.0"
+#define VERSION_STRING  "1.0.2"
+
+
+#include "ultralcd.h"
+
+// Macros for bit masks
+#define BIT(b) (1<<(b))
+#define TEST(n,b) (((n)&BIT(b))!=0)
+#define SET_BIT(n,b,value) (n) ^= ((-value)^(n)) & (BIT(b))
+
 
 // look here for descriptions of G-codes: http://linuxcnc.org/handbook/gcode/g-code.html
 // http://objects.reprap.org/wiki/Mendel_User_Manual:_RepRapGCodes
@@ -207,7 +220,19 @@
 #ifdef SDSUPPORT
 CardReader card;
 #endif
+
+unsigned long TimeSent = millis();
+unsigned long TimeNow = millis();
+
+union Data
+{
+byte b[2];
+int value;
+};
+
 float homing_feedrate[] = HOMING_FEEDRATE;
+// Currently only the extruder axis may be switched to a relative mode.
+// Other axes are always absolute or relative based on the common relative_mode flag.
 bool axis_relative_modes[] = AXIS_RELATIVE_MODES;
 int feedmultiply=100; //100->1 200->2
 int saved_feedmultiply;
@@ -220,6 +245,32 @@ int extruder_multiply[EXTRUDERS] = {100
     #endif
   #endif
 };
+
+bool is_usb_printing = false;
+
+unsigned int  usb_printing_counter;
+
+int lcd_change_fil_state = 0;
+int feedmultiplyBckp = 100;
+unsigned char lang_selected = 0;
+
+
+unsigned long total_filament_used;
+unsigned int heating_status;
+unsigned int heating_status_counter;
+bool custom_message;
+unsigned int custom_message_type;
+unsigned int custom_message_state;
+
+bool volumetric_enabled = false;
+float filament_size[EXTRUDERS] = { DEFAULT_NOMINAL_FILAMENT_DIA
+  #if EXTRUDERS > 1
+      , DEFAULT_NOMINAL_FILAMENT_DIA
+    #if EXTRUDERS > 2
+       , DEFAULT_NOMINAL_FILAMENT_DIA
+    #endif
+  #endif
+};
 float volumetric_multiplier[EXTRUDERS] = {1.0
   #if EXTRUDERS > 1
     , 1.0
@@ -229,10 +280,8 @@ float volumetric_multiplier[EXTRUDERS] = {1.0
   #endif
 };
 float current_position[NUM_AXIS] = { 0.0, 0.0, 0.0, 0.0 };
-float add_homeing[3]={0,0,0};
-#ifdef DELTA
-float endstop_adj[3]={0,0,0};
-#endif
+float add_homing[3]={0,0,0};
+
 float min_pos[3] = { X_MIN_POS, Y_MIN_POS, Z_MIN_POS };
 float max_pos[3] = { X_MAX_POS, Y_MAX_POS, Z_MAX_POS };
 bool axis_known_position[3] = {false, false, false};
@@ -240,11 +289,7 @@ float zprobe_zoffset;
 
 // Extruder offset
 #if EXTRUDERS > 1
-#ifndef DUAL_X_CARRIAGE
   #define NUM_EXTRUDER_OFFSETS 2 // only in XY plane
-#else
-  #define NUM_EXTRUDER_OFFSETS 3 // supports offsets in XYZ plane
-#endif
 float extruder_offset[NUM_EXTRUDER_OFFSETS][EXTRUDERS] = {
 #if defined(EXTRUDER_OFFSET_X) && defined(EXTRUDER_OFFSET_Y)
   EXTRUDER_OFFSET_X, EXTRUDER_OFFSET_Y
@@ -254,22 +299,32 @@ float extruder_offset[NUM_EXTRUDER_OFFSETS][EXTRUDERS] = {
 
 uint8_t active_extruder = 0;
 int fanSpeed=0;
-#ifdef SERVO_ENDSTOPS
-  int servo_endstops[] = SERVO_ENDSTOPS;
-  int servo_endstop_angles[] = SERVO_ENDSTOP_ANGLES;
-#endif
-#ifdef BARICUDA
-int ValvePressure=0;
-int EtoPPressure=0;
-#endif
 
 #ifdef FWRETRACT
   bool autoretract_enabled=false;
-  bool retracted=false;
+  bool retracted[EXTRUDERS]={false
+    #if EXTRUDERS > 1
+    , false
+     #if EXTRUDERS > 2
+      , false
+     #endif
+  #endif
+  };
+  bool retracted_swap[EXTRUDERS]={false
+    #if EXTRUDERS > 1
+    , false
+     #if EXTRUDERS > 2
+      , false
+     #endif
+  #endif
+  };
+
   float retract_length = RETRACT_LENGTH;
+  float retract_length_swap = RETRACT_LENGTH_SWAP;
   float retract_feedrate = RETRACT_FEEDRATE;
   float retract_zlift = RETRACT_ZLIFT;
   float retract_recover_length = RETRACT_RECOVER_LENGTH;
+  float retract_recover_length_swap = RETRACT_RECOVER_LENGTH_SWAP;
   float retract_recover_feedrate = RETRACT_RECOVER_FEEDRATE;
 #endif
 
@@ -281,43 +336,30 @@ int EtoPPressure=0;
   #endif
 #endif
 
-// LED Brightness
-#if defined(LED_PIN) && LED_PIN > -1
-  int ledPwm=0;
-  bool ledInit=false;
+bool cancel_heatup = false ;
+
+#ifdef FILAMENT_SENSOR
+  //Variables for Filament Sensor input 
+  float filament_width_nominal=DEFAULT_NOMINAL_FILAMENT_DIA;  //Set nominal filament width, can be changed with M404 
+  bool filament_sensor=false;  //M405 turns on filament_sensor control, M406 turns it off 
+  float filament_width_meas=DEFAULT_MEASURED_FILAMENT_DIA; //Stores the measured filament diameter 
+  signed char measurement_delay[MAX_MEASUREMENT_DELAY+1];  //ring buffer to delay measurement  store extruder factor after subtracting 100 
+  int delay_index1=0;  //index into ring buffer
+  int delay_index2=-1;  //index into ring buffer - set to -1 on startup to indicate ring buffer needs to be initialized
+  float delay_dist=0; //delay distance counter  
+  int meas_delay_cm = MEASUREMENT_DELAY_CM;  //distance delay setting
 #endif
 
-// Serial flag
-#ifdef ACTION_COMMAND
-  bool serial_active = false;
-#endif
-
-#ifdef DELTA
-  float delta[3] = {0.0, 0.0, 0.0};
-  #define SIN_60 0.8660254037844386
-  #define COS_60 0.5
-  // these are the default values, can be overriden with M665
-  float delta_radius= DELTA_RADIUS;
-  float delta_tower1_x= -SIN_60*delta_radius; // front left tower
-  float delta_tower1_y= -COS_60*delta_radius;	   
-  float delta_tower2_x=  SIN_60*delta_radius; // front right tower
-  float delta_tower2_y= -COS_60*delta_radius;	   
-  float delta_tower3_x= 0.0;                  // back middle tower
-  float delta_tower3_y= delta_radius;
-  float delta_diagonal_rod= DELTA_DIAGONAL_ROD;
-  float delta_diagonal_rod_2= sq(delta_diagonal_rod);
-  float delta_segments_per_second= DELTA_SEGMENTS_PER_SECOND;
-#endif					
-
-#ifdef FILAMENT_RUNOUT_SENSOR
-  static bool filrunoutEnqueued = false;
-#endif
+const char errormagic[] PROGMEM = "Error:";
+const char echomagic[] PROGMEM = "echo:";
 
 //===========================================================================
 //=============================Private Variables=============================
 //===========================================================================
 const char axis_codes[NUM_AXIS] = {'X', 'Y', 'Z', 'E'};
-static float destination[NUM_AXIS] = {  0.0, 0.0, 0.0, 0.0};
+float destination[NUM_AXIS] = {  0.0, 0.0, 0.0, 0.0};
+
+static float delta[3] = {0.0, 0.0, 0.0};
 
 // For tracing an arc
 static float offset[3] = {0.0, 0.0, 0.0};
@@ -329,13 +371,48 @@ static long gcode_N, gcode_LastN, Stopped_gcode_LastN = 0;
 // Also there is bool axis_relative_modes[] per axis flag.
 static bool relative_mode = false;  
 
-static char cmdbuffer[BUFSIZE][MAX_CMD_SIZE];
-static bool fromsd[BUFSIZE];
+// String circular buffer. Commands may be pushed to the buffer from both sides:
+// Chained commands will be pushed to the front, interactive (from LCD menu) 
+// and printing commands (from serial line or from SD card) are pushed to the tail.
+// First character of each entry indicates the type of the entry: 
+#define CMDBUFFER_CURRENT_TYPE_UNKNOWN  0
+// Command in cmdbuffer was sent over USB.
+#define CMDBUFFER_CURRENT_TYPE_USB      1
+// Command in cmdbuffer was read from SDCARD.
+#define CMDBUFFER_CURRENT_TYPE_SDCARD   2
+// Command in cmdbuffer was generated by the UI.
+#define CMDBUFFER_CURRENT_TYPE_UI       3
+// Command in cmdbuffer was generated by another G-code.
+#define CMDBUFFER_CURRENT_TYPE_CHAINED  4
+
+// How much space to reserve for the chained commands
+// of type CMDBUFFER_CURRENT_TYPE_CHAINED,
+// which are pushed to the front of the queue?
+// Maximum 5 commands of max length 20 + null terminator.
+#define CMDBUFFER_RESERVE_FRONT       (5*21)
+// Reserve BUFSIZE lines of length MAX_CMD_SIZE plus CMDBUFFER_RESERVE_FRONT.
+static char cmdbuffer[BUFSIZE * (MAX_CMD_SIZE + 1) + CMDBUFFER_RESERVE_FRONT];
+// Head of the circular buffer, where to read.
 static int bufindr = 0;
+// Tail of the buffer, where to write.
 static int bufindw = 0;
+// Number of lines in cmdbuffer.
 static int buflen = 0;
-//static int i = 0;
-static char serial_char;
+// Flag for processing the current command inside the main Arduino loop().
+// If a new command was pushed to the front of a command buffer while
+// processing another command, this replaces the command on the top.
+// Therefore don't remove the command from the queue in the loop() function.
+static bool cmdbuffer_front_already_processed = false;
+
+// Type of a command, which is to be executed right now.
+#define CMDBUFFER_CURRENT_TYPE   (cmdbuffer[bufindr])
+// String of a command, which is to be executed right now.
+#define CMDBUFFER_CURRENT_STRING (cmdbuffer+bufindr+1)
+
+// Enable debugging of the command buffer.
+// Debugging information will be sent to serial line.
+// #define CMDBUFFER_DEBUG
+
 static int serial_count = 0;
 static boolean comment_mode = false;
 static char *strchr_pointer; // just a pointer to find chars in the command string like X, Y, Z, E, etc
@@ -347,11 +424,12 @@ const int sensitive_pins[] = SENSITIVE_PINS; // Sensitive pin list for M42
 
 //Inactivity shutdown variables
 static unsigned long previous_millis_cmd = 0;
-static unsigned long max_inactive_time = 0;
+unsigned long max_inactive_time = 0;
 static unsigned long stepper_inactive_time = DEFAULT_STEPPER_DEACTIVE_TIME*1000l;
 
 unsigned long starttime=0;
 unsigned long stoptime=0;
+unsigned long _usb_timer = 0;
 
 static uint8_t tmp_extruder;
 
@@ -385,10 +463,14 @@ void serial_echopair_P(const char *s_P, double v)
 void serial_echopair_P(const char *s_P, unsigned long v)
     { serialprintPGM(s_P); SERIAL_ECHO(v); }
 
-extern "C"{
-  extern unsigned int __bss_end;
-  extern unsigned int __heap_start;
-  extern void *__brkval;
+#ifdef SDSUPPORT
+  #include "SdFatUtil.h"
+  int freeMemory() { return SdFatUtil::FreeRam(); }
+#else
+  extern "C" {
+    extern unsigned int __bss_end;
+    extern unsigned int __heap_start;
+    extern void *__brkval;
 
   int freeMemory() {
     int free_memory;
@@ -399,57 +481,320 @@ extern "C"{
       free_memory = ((int)&free_memory) - ((int)__brkval);
 
     return free_memory;
+    }
   }
+#endif //!SDSUPPORT
+
+// Pop the currently processed command from the queue.
+// It is expected, that there is at least one command in the queue.
+bool cmdqueue_pop_front()
+{
+    if (buflen > 0) {
+#ifdef CMDBUFFER_DEBUG
+        SERIAL_ECHOPGM("Dequeing ");
+        SERIAL_ECHO(cmdbuffer+bufindr+1);
+        SERIAL_ECHOLNPGM("");
+        SERIAL_ECHOPGM("Old indices: buflen ");
+        SERIAL_ECHO(buflen);
+        SERIAL_ECHOPGM(", bufindr ");
+        SERIAL_ECHO(bufindr);
+        SERIAL_ECHOPGM(", bufindw ");
+        SERIAL_ECHO(bufindw);
+        SERIAL_ECHOPGM(", serial_count ");
+        SERIAL_ECHO(serial_count);
+        SERIAL_ECHOPGM(", bufsize ");
+        SERIAL_ECHO(sizeof(cmdbuffer));
+        SERIAL_ECHOLNPGM("");
+#endif /* CMDBUFFER_DEBUG */
+        if (-- buflen == 0) {
+            // Empty buffer.
+            if (serial_count == 0)
+                // No serial communication is pending. Reset both pointers to zero.
+                bufindw = 0;
+            bufindr = bufindw;
+        } else {
+            // There is at least one ready line in the buffer.
+            // First skip the current command ID and iterate up to the end of the string.
+            for (++ bufindr; cmdbuffer[bufindr] != 0; ++ bufindr) ;
+            // Second, skip the end of string null character and iterate until a nonzero command ID is found.
+            for (++ bufindr; bufindr < sizeof(cmdbuffer) && cmdbuffer[bufindr] == 0; ++ bufindr) ;
+            // If the end of the buffer was empty,
+            if (bufindr == sizeof(cmdbuffer)) {
+                // skip to the start and find the nonzero command.
+                for (bufindr = 0; cmdbuffer[bufindr] == 0; ++ bufindr) ;
+            }
+#ifdef CMDBUFFER_DEBUG
+            SERIAL_ECHOPGM("New indices: buflen ");
+            SERIAL_ECHO(buflen);
+            SERIAL_ECHOPGM(", bufindr ");
+            SERIAL_ECHO(bufindr);
+            SERIAL_ECHOPGM(", bufindw ");
+            SERIAL_ECHO(bufindw);
+            SERIAL_ECHOPGM(", serial_count ");
+            SERIAL_ECHO(serial_count);
+            SERIAL_ECHOPGM(" new command on the top: ");
+            SERIAL_ECHO(cmdbuffer+bufindr+1);
+            SERIAL_ECHOLNPGM("");
+#endif /* CMDBUFFER_DEBUG */
+        }
+        return true;
+    }
+    return false;
 }
+
+void cmdqueue_reset()
+{
+    while (cmdqueue_pop_front()) ;
+}
+
+// How long a string could be pushed to the front of the command queue?
+// If yes, adjust bufindr to the new position, where the new command could be enqued.
+// len_asked does not contain the zero terminator size.
+bool cmdqueue_could_enqueue_front(int len_asked)
+{
+    // MAX_CMD_SIZE has to accommodate the zero terminator.
+    if (len_asked >= MAX_CMD_SIZE)
+        return false;
+    // Remove the currently processed command from the queue.
+    if (! cmdbuffer_front_already_processed) {
+        cmdqueue_pop_front();
+        cmdbuffer_front_already_processed = true;
+    }
+    if (bufindr == bufindw && buflen > 0)
+        // Full buffer.
+        return false;
+    // Adjust the end of the write buffer based on whether a partial line is in the receive buffer.
+    int endw = (serial_count > 0) ? (bufindw + MAX_CMD_SIZE + 1) : bufindw;
+    if (bufindw < bufindr) {
+        int bufindr_new = bufindr - len_asked - 2;
+        // Simple case. There is a contiguous space between the write buffer and the read buffer.
+        if (endw <= bufindr_new) {
+            bufindr = bufindr_new;
+            return true;
+        }
+    } else {
+        // Otherwise the free space is split between the start and end.
+        if (len_asked + 2 <= bufindr) {
+            // Could fit at the start.
+            bufindr -= len_asked + 2;
+            return true;
+        }
+        int bufindr_new = sizeof(cmdbuffer) - len_asked - 2;
+        if (endw <= bufindr_new) {
+            memset(cmdbuffer, 0, bufindr);
+            bufindr = bufindr_new;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Could one enqueue a command of lenthg len_asked into the buffer,
+// while leaving CMDBUFFER_RESERVE_FRONT at the start?
+// If yes, adjust bufindw to the new position, where the new command could be enqued.
+// len_asked does not contain the zero terminator size.
+bool cmdqueue_could_enqueue_back(int len_asked)
+{
+    // MAX_CMD_SIZE has to accommodate the zero terminator.
+    if (len_asked >= MAX_CMD_SIZE)
+        return false;
+
+    if (bufindr == bufindw && buflen > 0)
+        // Full buffer.
+        return false;
+
+    if (serial_count > 0) {
+        // If there is some data stored starting at bufindw, len_asked is certainly smaller than
+        // the allocated data buffer. Try to reserve a new buffer and to move the already received
+        // serial data.
+        // How much memory to reserve for the commands pushed to the front?
+        // End of the queue, when pushing to the end.
+        int endw = bufindw + len_asked + 2;
+        if (bufindw < bufindr)
+            // Simple case. There is a contiguous space between the write buffer and the read buffer.
+            return endw + CMDBUFFER_RESERVE_FRONT <= bufindr;
+        // Otherwise the free space is split between the start and end.
+        if (// Could one fit to the end, including the reserve?
+            endw + CMDBUFFER_RESERVE_FRONT <= sizeof(cmdbuffer) ||
+            // Could one fit to the end, and the reserve to the start?
+            (endw <= sizeof(cmdbuffer) && CMDBUFFER_RESERVE_FRONT <= bufindr))
+            return true;
+        // Could one fit both to the start?
+        if (len_asked + 2 + CMDBUFFER_RESERVE_FRONT <= bufindr) {
+            // Mark the rest of the buffer as used.
+            memset(cmdbuffer+bufindw, 0, sizeof(cmdbuffer)-bufindw);
+            // and point to the start.
+            bufindw = 0;
+            return true;
+        }
+    } else {
+        // How much memory to reserve for the commands pushed to the front?
+        // End of the queue, when pushing to the end.
+        int endw = bufindw + len_asked + 2;
+        if (bufindw < bufindr)
+            // Simple case. There is a contiguous space between the write buffer and the read buffer.
+            return endw + CMDBUFFER_RESERVE_FRONT <= bufindr;
+        // Otherwise the free space is split between the start and end.
+        if (// Could one fit to the end, including the reserve?
+            endw + CMDBUFFER_RESERVE_FRONT <= sizeof(cmdbuffer) ||
+            // Could one fit to the end, and the reserve to the start?
+            (endw <= sizeof(cmdbuffer) && CMDBUFFER_RESERVE_FRONT <= bufindr))
+            return true;
+        // Could one fit both to the start?
+        if (len_asked + 2 + CMDBUFFER_RESERVE_FRONT <= bufindr) {
+            // Mark the rest of the buffer as used.
+            memset(cmdbuffer+bufindw, 0, sizeof(cmdbuffer)-bufindw);
+            // and point to the start.
+            bufindw = 0;
+            return true;
+        }
+    }
+    return false;
+}
+
+#ifdef CMDBUFFER_DEBUG
+static void cmdqueue_dump_to_serial_single_line(int nr, const char *p)
+{
+    SERIAL_ECHOPGM("Entry nr: ");
+    SERIAL_ECHO(nr);
+    SERIAL_ECHOPGM(", type: ");
+    SERIAL_ECHO(int(*p));
+    SERIAL_ECHOPGM(", cmd: ");
+    SERIAL_ECHO(p+1);  
+    SERIAL_ECHOLNPGM("");
+}
+
+static void cmdqueue_dump_to_serial()
+{
+    if (buflen == 0) {
+        SERIAL_ECHOLNPGM("The command buffer is empty.");
+    } else {
+        SERIAL_ECHOPGM("Content of the buffer: entries ");
+        SERIAL_ECHO(buflen);
+        SERIAL_ECHOPGM(", indr ");
+        SERIAL_ECHO(bufindr);
+        SERIAL_ECHOPGM(", indw ");
+        SERIAL_ECHO(bufindw);
+        SERIAL_ECHOLNPGM("");
+        int nr = 0;
+        if (bufindr < bufindw) {
+            for (const char *p = cmdbuffer + bufindr; p < cmdbuffer + bufindw; ++ nr) {
+                cmdqueue_dump_to_serial_single_line(nr, p);
+                // Skip the command.
+                for (++p; *p != 0; ++ p);
+                // Skip the gaps.
+                for (++p; p < cmdbuffer + bufindw && *p == 0; ++ p);
+            }
+        } else {
+            for (const char *p = cmdbuffer + bufindr; p < cmdbuffer + sizeof(cmdbuffer); ++ nr) {
+                cmdqueue_dump_to_serial_single_line(nr, p);
+                // Skip the command.
+                for (++p; *p != 0; ++ p);
+                // Skip the gaps.
+                for (++p; p < cmdbuffer + sizeof(cmdbuffer) && *p == 0; ++ p);
+            }
+            for (const char *p = cmdbuffer; p < cmdbuffer + bufindw; ++ nr) {
+                cmdqueue_dump_to_serial_single_line(nr, p);
+                // Skip the command.
+                for (++p; *p != 0; ++ p);
+                // Skip the gaps.
+                for (++p; p < cmdbuffer + bufindw && *p == 0; ++ p);
+            }
+        }
+        SERIAL_ECHOLNPGM("End of the buffer.");
+    }
+}
+#endif /* CMDBUFFER_DEBUG */
 
 //adds an command to the main command buffer
 //thats really done in a non-safe way.
 //needs overworking someday
-void enquecommand(const char *cmd)
+// Currently the maximum length of a command piped through this function is around 20 characters
+void enquecommand(const char *cmd, bool from_progmem)
 {
-  if(buflen < BUFSIZE)
-  {
-    //this is dangerous if a mixing of serial and this happens
-    strcpy(&(cmdbuffer[bufindw][0]),cmd);
-    SERIAL_ECHO_START;
-    SERIAL_ECHOPGM("enqueing \"");
-    SERIAL_ECHO(cmdbuffer[bufindw]);
-    SERIAL_ECHOLNPGM("\"");
-    bufindw= (bufindw + 1)%BUFSIZE;
-    buflen += 1;
-  }
+    int len = from_progmem ? strlen_P(cmd) : strlen(cmd);
+    // Does cmd fit the queue while leaving sufficient space at the front for the chained commands?
+    // If it fits, it may move bufindw, so it points to a contiguous buffer, which fits cmd.
+    if (cmdqueue_could_enqueue_back(len)) {
+        // This is dangerous if a mixing of serial and this happens
+        // This may easily be tested: If serial_count > 0, we have a problem.
+        cmdbuffer[bufindw] = CMDBUFFER_CURRENT_TYPE_UI;
+        if (from_progmem)
+            strcpy_P(cmdbuffer + bufindw + 1, cmd);
+        else
+            strcpy(cmdbuffer + bufindw + 1, cmd);
+        SERIAL_ECHO_START;
+        SERIAL_ECHORPGM(MSG_Enqueing);
+        SERIAL_ECHO(cmdbuffer + bufindw + 1);
+        SERIAL_ECHOLNPGM("\"");
+        bufindw += len + 2;
+        if (bufindw == sizeof(cmdbuffer))
+            bufindw = 0;
+        ++ buflen;
+#ifdef CMDBUFFER_DEBUG
+        cmdqueue_dump_to_serial();
+#endif /* CMDBUFFER_DEBUG */
+    } else {
+        SERIAL_ERROR_START;
+        SERIAL_ECHORPGM(MSG_Enqueing);
+        if (from_progmem)
+            SERIAL_PROTOCOLRPGM(cmd);
+        else
+            SERIAL_ECHO(cmd);
+        SERIAL_ECHOLNPGM("\" failed: Buffer full!");
+#ifdef CMDBUFFER_DEBUG
+        cmdqueue_dump_to_serial();
+#endif /* CMDBUFFER_DEBUG */
+    }
 }
 
-void enquecommand_P(const char *cmd)
+void enquecommand_front(const char *cmd, bool from_progmem)
 {
-  if(buflen < BUFSIZE)
-  {
-    //this is dangerous if a mixing of serial and this happens
-    strcpy_P(&(cmdbuffer[bufindw][0]),cmd);
-    SERIAL_ECHO_START;
-    SERIAL_ECHOPGM("enqueing \"");
-    SERIAL_ECHO(cmdbuffer[bufindw]);
-    SERIAL_ECHOLNPGM("\"");
-    bufindw= (bufindw + 1)%BUFSIZE;
-    buflen += 1;
-  }
+    int len = from_progmem ? strlen_P(cmd) : strlen(cmd);
+    // Does cmd fit the queue? This call shall move bufindr, so the command may be copied.
+    if (cmdqueue_could_enqueue_front(len)) {
+        cmdbuffer[bufindr] = CMDBUFFER_CURRENT_TYPE_UI;
+        if (from_progmem)
+            strcpy_P(cmdbuffer + bufindr + 1, cmd);
+        else
+            strcpy(cmdbuffer + bufindr + 1, cmd);
+        ++ buflen;
+        SERIAL_ECHO_START;
+        SERIAL_ECHOPGM("Enqueing to the front: \"");
+        SERIAL_ECHO(cmdbuffer + bufindr + 1);
+        SERIAL_ECHOLNPGM("\"");
+#ifdef CMDBUFFER_DEBUG
+        cmdqueue_dump_to_serial();
+#endif /* CMDBUFFER_DEBUG */
+    } else {
+        SERIAL_ERROR_START;
+        SERIAL_ECHOPGM("Enqueing to the front: \"");
+        if (from_progmem)
+            SERIAL_PROTOCOLRPGM(cmd);
+        else
+            SERIAL_ECHO(cmd);
+        SERIAL_ECHOLNPGM("\" failed: Buffer full!");
+#ifdef CMDBUFFER_DEBUG
+        cmdqueue_dump_to_serial();
+#endif /* CMDBUFFER_DEBUG */
+    }
 }
 
 void setup_killpin()
 {
   #if defined(KILL_PIN) && KILL_PIN > -1
-    pinMode(KILL_PIN,INPUT);
+    SET_INPUT(KILL_PIN);
     WRITE(KILL_PIN,HIGH);
   #endif
 }
 
-void setup_filrunoutpin() {
-  #ifdef FILAMENT_RUNOUT_SENSOR
-    pinMode(FILRUNOUT_PIN, INPUT);
-    #ifdef ENDSTOPPULLUP_FIL_RUNOUT
-      WRITE(FILRUNOUT_PIN, HIGH);
-    #endif
-  #endif
+// Set home pin
+void setup_homepin(void)
+{
+#if defined(HOME_PIN) && HOME_PIN > -1
+   SET_INPUT(HOME_PIN);
+   WRITE(HOME_PIN,HIGH);
+#endif
 }
 
 void setup_photpin()
@@ -512,16 +857,16 @@ void servo_init()
   }
   #endif
 
-  #if defined (ENABLE_AUTO_BED_LEVELING) && (PROBE_SERVO_DEACTIVATION_DELAY > 0)
-  delay(PROBE_SERVO_DEACTIVATION_DELAY);
-  servos[servo_endstops[Z_AXIS]].detach();
-  #endif
-}
+#ifdef MESH_BED_LEVELING
+   enum MeshLevelingState { MeshReport, MeshStart, MeshNext, MeshSet };
+#endif
 
+// "Setup" function is called by the Arduino framework on startup.
+// Before startup, the Timers-functions (PWM)/Analog RW and HardwareSerial provided by the Arduino-code 
+// are initialized by the main() routine provided by the Arduino framework.
 void setup()
 {
   setup_killpin();
-  setup_filrunoutpin();
   setup_powerhold();
   MYSERIAL.begin(BAUDRATE);
   SERIAL_PROTOCOLLNPGM("start");
@@ -622,9 +967,7 @@ void loop()
           card.closefile();
           SERIAL_PROTOCOLLNPGM(MSG_FILE_SAVED);
         }
-      }
-      else
-      {
+      } else {
         process_commands();
       }
     #else
@@ -642,8 +985,21 @@ void loop()
 
 void get_command()
 {
-  while( MYSERIAL.available() > 0  && buflen < BUFSIZE) {
-    serial_char = MYSERIAL.read();
+    // Test and reserve space for the new command string.
+    if (! cmdqueue_could_enqueue_back(MAX_CMD_SIZE-1))
+        return;
+
+  while (MYSERIAL.available() > 0) {
+    char serial_char = MYSERIAL.read();
+      TimeSent = millis();
+      TimeNow = millis();
+
+    if (serial_char < 0)
+        // Ignore extended ASCII characters. These characters have no meaning in the G-code apart from the file names
+        // and Marlin does not support such file names anyway.
+        // Serial characters with a highest bit set to 1 are generated when the USB cable is unplugged, leading
+        // to a hang-up of the print process from an SD card.
+        continue;
     if(serial_char == '\n' ||
        serial_char == '\r' ||
        (serial_char == ':' && comment_mode == false) ||
