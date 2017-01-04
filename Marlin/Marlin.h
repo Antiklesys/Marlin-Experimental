@@ -65,26 +65,30 @@
 #define SERIAL_PROTOCOL(x) (MYSERIAL.print(x))
 #define SERIAL_PROTOCOL_F(x,y) (MYSERIAL.print(x,y))
 #define SERIAL_PROTOCOLPGM(x) (serialprintPGM(PSTR(x)))
+#define SERIAL_PROTOCOLRPGM(x) (serialprintPGM((x)))
 #define SERIAL_PROTOCOLLN(x) (MYSERIAL.print(x),MYSERIAL.write('\n'))
 #define SERIAL_PROTOCOLLNPGM(x) (serialprintPGM(PSTR(x)),MYSERIAL.write('\n'))
+#define SERIAL_PROTOCOLLNRPGM(x) (serialprintPGM((x)),MYSERIAL.write('\n'))
 
 
-const char errormagic[] PROGMEM ="Error:";
-const char echomagic[] PROGMEM ="echo:";
-#ifdef ACTION_COMMAND
-const char actionmagic[] PROGMEM ="// action:";
-#endif
+extern const char errormagic[] PROGMEM;
+extern const char echomagic[] PROGMEM;
+
 #define SERIAL_ERROR_START (serialprintPGM(errormagic))
 #define SERIAL_ERROR(x) SERIAL_PROTOCOL(x)
 #define SERIAL_ERRORPGM(x) SERIAL_PROTOCOLPGM(x)
+#define SERIAL_ERRORRPGM(x) SERIAL_PROTOCOLRPGM(x)
 #define SERIAL_ERRORLN(x) SERIAL_PROTOCOLLN(x)
 #define SERIAL_ERRORLNPGM(x) SERIAL_PROTOCOLLNPGM(x)
+#define SERIAL_ERRORLNRPGM(x) SERIAL_PROTOCOLLNRPGM(x)
 
 #define SERIAL_ECHO_START (serialprintPGM(echomagic))
 #define SERIAL_ECHO(x) SERIAL_PROTOCOL(x)
 #define SERIAL_ECHOPGM(x) SERIAL_PROTOCOLPGM(x)
+#define SERIAL_ECHORPGM(x) SERIAL_PROTOCOLRPGM(x)
 #define SERIAL_ECHOLN(x) SERIAL_PROTOCOLLN(x)
 #define SERIAL_ECHOLNPGM(x) SERIAL_PROTOCOLLNPGM(x)
+#define SERIAL_ECHOLNRPGM(x) SERIAL_PROTOCOLLNRPGM(x)
 
 #define SERIAL_ECHOPAIR(name,value) (serial_echopair_P(PSTR(name),(value)))
 
@@ -92,13 +96,6 @@ void serial_echopair_P(const char *s_P, float v);
 void serial_echopair_P(const char *s_P, double v);
 void serial_echopair_P(const char *s_P, unsigned long v);
 
-#ifdef ACTION_COMMAND
-#define SERIAL_ACTION_START (serialprintPGM(actionmagic))
-#define SERIAL_ACTION(x) SERIAL_PROTOCOL(x)
-#define SERIAL_ACTIONPGM(x) SERIAL_PROTOCOLPGM(x)
-#define SERIAL_ACTIONNL(x) SERIAL_PROTOCOLLN(x)
-#define SERIAL_ACTIONNLPGM(x) SERIAL_PROTOCOLLNPGM(x)
-#endif
 
 //Things to write to serial from Program memory. Saves 400 to 2k of RAM.
 FORCE_INLINE void serialprintPGM(const char *str)
@@ -115,13 +112,9 @@ FORCE_INLINE void serialprintPGM(const char *str)
 void get_command();
 void process_commands();
 
-void manage_inactivity();
+void manage_inactivity(bool ignore_stepper_queue=false);
 
-#if defined(DUAL_X_CARRIAGE) && defined(X_ENABLE_PIN) && X_ENABLE_PIN > -1 \
-    && defined(X2_ENABLE_PIN) && X2_ENABLE_PIN > -1
-  #define  enable_x() do { WRITE(X_ENABLE_PIN, X_ENABLE_ON); WRITE(X2_ENABLE_PIN, X_ENABLE_ON); } while (0)
-  #define disable_x() do { WRITE(X_ENABLE_PIN,!X_ENABLE_ON); WRITE(X2_ENABLE_PIN,!X_ENABLE_ON); axis_known_position[X_AXIS] = false; } while (0)
-#elif defined(X_ENABLE_PIN) && X_ENABLE_PIN > -1
+#if defined(X_ENABLE_PIN) && X_ENABLE_PIN > -1
   #define  enable_x() WRITE(X_ENABLE_PIN, X_ENABLE_ON)
   #define disable_x() { WRITE(X_ENABLE_PIN,!X_ENABLE_ON); axis_known_position[X_AXIS] = false; }
 #else
@@ -142,18 +135,45 @@ void manage_inactivity();
   #define disable_y() ;
 #endif
 
-#if defined(Z_ENABLE_PIN) && Z_ENABLE_PIN > -1
-  #ifdef Z_DUAL_STEPPER_DRIVERS
-    #define  enable_z() { WRITE(Z_ENABLE_PIN, Z_ENABLE_ON); WRITE(Z2_ENABLE_PIN, Z_ENABLE_ON); }
-    #define disable_z() { WRITE(Z_ENABLE_PIN,!Z_ENABLE_ON); WRITE(Z2_ENABLE_PIN,!Z_ENABLE_ON); axis_known_position[Z_AXIS] = false; }
-  #else
-    #define  enable_z() WRITE(Z_ENABLE_PIN, Z_ENABLE_ON)
-    #define disable_z() { WRITE(Z_ENABLE_PIN,!Z_ENABLE_ON); axis_known_position[Z_AXIS] = false; }
-  #endif
+#if defined(Z_ENABLE_PIN) && Z_ENABLE_PIN > -1 
+	#if defined(Z_AXIS_ALWAYS_ON)
+		  #ifdef Z_DUAL_STEPPER_DRIVERS
+			#define  enable_z() { WRITE(Z_ENABLE_PIN, Z_ENABLE_ON); WRITE(Z2_ENABLE_PIN, Z_ENABLE_ON); }
+			#define disable_z() { WRITE(Z_ENABLE_PIN,!Z_ENABLE_ON); WRITE(Z2_ENABLE_PIN,!Z_ENABLE_ON); axis_known_position[Z_AXIS] = false; }
+		  #else
+			#define  enable_z() WRITE(Z_ENABLE_PIN, Z_ENABLE_ON)
+			#define  disable_z() ;
+		  #endif
+	#else
+		#ifdef Z_DUAL_STEPPER_DRIVERS
+			#define  enable_z() { WRITE(Z_ENABLE_PIN, Z_ENABLE_ON); WRITE(Z2_ENABLE_PIN, Z_ENABLE_ON); }
+			#define disable_z() { WRITE(Z_ENABLE_PIN,!Z_ENABLE_ON); WRITE(Z2_ENABLE_PIN,!Z_ENABLE_ON); axis_known_position[Z_AXIS] = false; }
+		#else
+			#define  enable_z() WRITE(Z_ENABLE_PIN, Z_ENABLE_ON)
+			#define disable_z() { WRITE(Z_ENABLE_PIN,!Z_ENABLE_ON); axis_known_position[Z_AXIS] = false; }
+		#endif
+	#endif
 #else
   #define enable_z() ;
   #define disable_z() ;
 #endif
+
+
+
+
+//#if defined(Z_ENABLE_PIN) && Z_ENABLE_PIN > -1
+//#ifdef Z_DUAL_STEPPER_DRIVERS
+//#define  enable_z() { WRITE(Z_ENABLE_PIN, Z_ENABLE_ON); WRITE(Z2_ENABLE_PIN, Z_ENABLE_ON); }
+//#define disable_z() { WRITE(Z_ENABLE_PIN,!Z_ENABLE_ON); WRITE(Z2_ENABLE_PIN,!Z_ENABLE_ON); axis_known_position[Z_AXIS] = false; }
+//#else
+//#define  enable_z() WRITE(Z_ENABLE_PIN, Z_ENABLE_ON)
+//#define disable_z() { WRITE(Z_ENABLE_PIN,!Z_ENABLE_ON); axis_known_position[Z_AXIS] = false; }
+//#endif
+//#else
+//#define enable_z() ;
+//#define disable_z() ;
+//#endif
+
 
 #if defined(E0_ENABLE_PIN) && (E0_ENABLE_PIN > -1)
   #define enable_e0() WRITE(E0_ENABLE_PIN, E_ENABLE_ON)
@@ -180,29 +200,31 @@ void manage_inactivity();
 #endif
 
 
-enum AxisEnum {X_AXIS=0, Y_AXIS=1, Z_AXIS=2, E_AXIS=3};
+enum AxisEnum {X_AXIS=0, Y_AXIS=1, Z_AXIS=2, E_AXIS=3, X_HEAD=4, Y_HEAD=5};
 
 
 void FlushSerialRequestResend();
 void ClearToSend();
 
 void get_coordinates();
-#ifdef DELTA
-void calculate_delta(float cartesian[3]);
-extern float delta[3];
-#endif
 void prepare_move();
-void kill();
+void kill(const char *full_screen_message = NULL);
 void Stop();
-
-#ifdef FILAMENT_RUNOUT_SENSOR
-  void filrunout();
-#endif
 
 bool IsStopped();
 
-void enquecommand(const char *cmd); //put an ASCII command at the end of the current buffer.
-void enquecommand_P(const char *cmd); //put an ASCII command at the end of the current buffer, read from flash
+//put an ASCII command at the end of the current buffer.
+void enquecommand(const char *cmd, bool from_progmem = false);
+//put an ASCII command at the end of the current buffer, read from flash
+#define enquecommand_P(cmd) enquecommand(cmd, true)
+void enquecommand_front(const char *cmd, bool from_progmem = false);
+//put an ASCII command at the end of the current buffer, read from flash
+#define enquecommand_P(cmd) enquecommand(cmd, true)
+#define enquecommand_front_P(cmd) enquecommand_front(cmd, true)
+void repeatcommand_front();
+// Remove all lines from the command queue.
+void cmdqueue_reset();
+
 void prepare_arc_move(char isclockwise);
 void clamp_to_software_endstops(float target[3]);
 
@@ -221,26 +243,20 @@ extern float homing_feedrate[];
 extern bool axis_relative_modes[];
 extern int feedmultiply;
 extern int extrudemultiply; // Sets extrude multiply factor (in percent) for all extruders
+extern bool volumetric_enabled;
 extern int extruder_multiply[EXTRUDERS]; // sets extrude multiply factor (in percent) for each extruder individually
+extern float filament_size[EXTRUDERS]; // cross-sectional area of filament (in millimeters), typically around 1.75 or 2.85, 0 disables the volumetric calculations for the extruder.
 extern float volumetric_multiplier[EXTRUDERS]; // reciprocal of cross-sectional area of filament (in square millimeters), stored this way to reduce computational burden in planner
 extern float current_position[NUM_AXIS] ;
-extern float add_homeing[3];
-#ifdef DELTA
-extern float endstop_adj[3];
-extern float delta_radius;
-extern float delta_diagonal_rod;
-extern float delta_segments_per_second;
-void recalc_delta_settings(float radius, float diagonal_rod);
-#endif
+extern float destination[NUM_AXIS] ;
+extern float add_homing[3];
 extern float min_pos[3];
 extern float max_pos[3];
 extern bool axis_known_position[3];
 extern float zprobe_zoffset;
 extern int fanSpeed;
-#ifdef BARICUDA
-extern int ValvePressure;
-extern int EtoPPressure;
-#endif
+extern void homeaxis(int axis);
+
 
 #ifdef FAN_SOFT_PWM
 extern unsigned char fanSpeedSoftPwm;
@@ -258,13 +274,24 @@ extern unsigned char fanSpeedSoftPwm;
 
 #ifdef FWRETRACT
 extern bool autoretract_enabled;
-extern bool retracted;
-extern float retract_length, retract_feedrate, retract_zlift;
-extern float retract_recover_length, retract_recover_feedrate;
+extern bool retracted[EXTRUDERS];
+extern float retract_length, retract_length_swap, retract_feedrate, retract_zlift;
+extern float retract_recover_length, retract_recover_length_swap, retract_recover_feedrate;
 #endif
 
 extern unsigned long starttime;
 extern unsigned long stoptime;
+extern bool is_usb_printing;
+extern unsigned int usb_printing_counter;
+
+extern unsigned long total_filament_used;
+void save_statistics(unsigned long _total_filament_used, unsigned long _total_print_time);
+extern unsigned int heating_status;
+extern unsigned int heating_status_counter;
+extern bool custom_message;
+extern unsigned int custom_message_type;
+extern unsigned int custom_message_state;
+
 
 // Handling multiple extruders pins
 extern uint8_t active_extruder;
@@ -274,20 +301,14 @@ extern void digipot_i2c_set_current( int channel, float current );
 extern void digipot_i2c_init();
 #endif
 
-// LED Brightness
-#if defined(LED_PIN) && LED_PIN > -1
-extern int ledPwm;
-extern bool ledInit;
 #endif
 
-// Serial flag
-#ifdef ACTION_COMMAND
-  extern bool serial_active;
-#endif
 
-// Motor current
-#ifdef MOTOR_CURRENT_PWM_XY_PIN
-extern int motor_current_setting[3];
-#endif
 
-#endif
+
+
+extern void calculate_volumetric_multipliers();
+
+// Similar to the default Arduino delay function, 
+// but it keeps the background tasks running.
+extern void delay_keep_alive(int ms);

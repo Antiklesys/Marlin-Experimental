@@ -92,9 +92,7 @@
 //=============================Mechanical Settings===========================
 //===========================================================================
 
-#ifdef ULTIMAKER_HBK
 #define ENDSTOPS_ONLY_FOR_HOMING // If defined the endstops will only be used for homing
-#endif
 
 
 //// AUTOSET LOCATIONS OF LIMIT SWITCHES
@@ -227,9 +225,7 @@
 #define QUICK_HOME  //if this is defined, if both x and y are to be homed, a diagonal move will be performed initially.
 
 #define AXIS_RELATIVE_MODES {false, false, false, false}
-
-#define MAX_STEP_FREQUENCY 40000 // Max step frequency for Ultimaker (5000 pps / half step)
-
+#define MAX_STEP_FREQUENCY 40000 // Max step frequency for Ultimaker (5000 pps / half step). Toshiba steppers are 4x slower, but Prusa3D does not use those.
 //By default pololu step drivers require an active high signal. However, some high power drivers require an active low signal as step.
 #define INVERT_X_STEP_PIN false
 #define INVERT_Y_STEP_PIN false
@@ -349,12 +345,6 @@
 
   #ifdef COREXY
     #error BABYSTEPPING not implemented for COREXY yet.
-  #endif
-
-  #ifdef DELTA
-    #ifdef BABYSTEP_XY
-      #error BABYSTEPPING only implemented for Z axis on deltabots.
-    #endif
   #endif
 #endif
 

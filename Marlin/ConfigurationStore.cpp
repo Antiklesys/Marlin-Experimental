@@ -42,11 +42,6 @@ void _EEPROM_readData(int &pos, uint8_t* value, uint8_t size)
 // the default values are used whenever there is a change to the data, to prevent
 // wrong data being written to the variables.
 // ALSO:  always make sure the variables in the Store and retrieve sections are in the same order.
-#ifdef DELTA
-#define EEPROM_VERSION "V11"
-#else
-#define EEPROM_VERSION "V10"
-#endif
 
 // EEPROM Extension
 // We don't want to invalidate everything when adding variables, so we introduce
@@ -61,7 +56,7 @@ void Config_StoreSettings()
   char ver[4]= "000";
   int i=EEPROM_OFFSET;
   EEPROM_WRITE_VAR(i,ver); // invalidate data first 
-  EEPROM_WRITE_VAR(i,axis_steps_per_unit); 
+  EEPROM_WRITE_VAR(i,axis_steps_per_unit);
   EEPROM_WRITE_VAR(i,max_feedrate);  
   EEPROM_WRITE_VAR(i,max_acceleration_units_per_sq_second);
   EEPROM_WRITE_VAR(i,acceleration);
@@ -72,13 +67,7 @@ void Config_StoreSettings()
   EEPROM_WRITE_VAR(i,max_xy_jerk);
   EEPROM_WRITE_VAR(i,max_z_jerk);
   EEPROM_WRITE_VAR(i,max_e_jerk);
-  EEPROM_WRITE_VAR(i,add_homeing);
-  #ifdef DELTA
-  EEPROM_WRITE_VAR(i,endstop_adj);
-  EEPROM_WRITE_VAR(i,delta_radius);
-  EEPROM_WRITE_VAR(i,delta_diagonal_rod);
-  EEPROM_WRITE_VAR(i,delta_segments_per_second);
-  #endif
+  EEPROM_WRITE_VAR(i,add_homing);
   #ifndef ULTIPANEL
   int plaPreheatHotendTemp = PLA_PREHEAT_HOTEND_TEMP, plaPreheatHPBTemp = PLA_PREHEAT_HPB_TEMP, plaPreheatFanSpeed = PLA_PREHEAT_FAN_SPEED;
   int absPreheatHotendTemp = ABS_PREHEAT_HOTEND_TEMP, absPreheatHPBTemp = ABS_PREHEAT_HPB_TEMP, absPreheatFanSpeed = ABS_PREHEAT_FAN_SPEED;
@@ -136,7 +125,7 @@ void Config_StoreSettings()
     EEPROM_WRITE_VAR(i,dummy);
     EEPROM_WRITE_VAR(i,dummy);
   #endif
-  // End EEPROM Extension
+  
   char ver2[4]=EEPROM_VERSION;
   i=EEPROM_OFFSET;
   EEPROM_WRITE_VAR(i,ver2); // validate data
@@ -283,13 +272,7 @@ void Config_RetrieveSettings()
         EEPROM_READ_VAR(i,max_xy_jerk);
         EEPROM_READ_VAR(i,max_z_jerk);
         EEPROM_READ_VAR(i,max_e_jerk);
-        EEPROM_READ_VAR(i,add_homeing);
-        #ifdef DELTA
-        EEPROM_READ_VAR(i,endstop_adj);
-        EEPROM_READ_VAR(i,delta_radius);
-        EEPROM_READ_VAR(i,delta_diagonal_rod);
-        EEPROM_READ_VAR(i,delta_segments_per_second);
-        #endif
+        EEPROM_READ_VAR(i,add_homing);
         #ifndef ULTIPANEL
         int plaPreheatHotendTemp, plaPreheatHPBTemp, plaPreheatFanSpeed;
         int absPreheatHotendTemp, absPreheatHPBTemp, absPreheatFanSpeed;
